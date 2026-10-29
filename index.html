@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>德胧 AI Native · 手势体验站</title>
+<style>
+  :root{
+    --bg:#0B0E13; --panel:#121821; --line:#1E2733;
+    --accent:#E8B04B; --blue:#58B2DC; --ok:#3DD68C; --warn:#FF6B6B; --purple:#9A7BFF;
+    --txt:#E8EEF5; --sub:#8A97A8;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,"PingFang SC",sans-serif}
+  body{display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  .wrap{width:100%;max-width:480px;display:flex;flex-direction:column;flex:1}
+
+  header{padding:14px 16px 8px;display:flex;align-items:center;justify-content:space-between}
+  .brand{font-size:16px;font-weight:800;letter-spacing:.5px;line-height:1.1}
+  .brand .mark{color:var(--accent)}
+  .brand .en{display:block;font-size:9px;font-weight:600;letter-spacing:2px;color:var(--sub);margin-top:2px}
+  header .tag{font-size:10px;color:var(--sub);border:1px solid var(--line);border-radius:999px;padding:3px 9px;white-space:nowrap}
+
+  .stage{position:relative;width:100%;aspect-ratio:3/4;background:#05070A;overflow:hidden;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .scan{position:absolute;inset:0;background:linear-gradient(180deg,rgba(232,176,75,.07),transparent 30%);pointer-events:none}
+  .hud{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;font-size:12px;pointer-events:none}
+  .hud .pill{background:rgba(11,14,19,.6);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:8px;padding:5px 9px;color:var(--sub)}
+  .hud .pill b{color:var(--txt);font-weight:600}
+  .hud .pill .v{color:var(--ok)}
+  .center-hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;text-align:center;padding:24px;z-index:5}
+  .center-hint p{color:var(--sub);font-size:13px;line-height:1.6;max-width:300px;margin:0}
+  .center-hint .big{color:var(--txt);font-size:16px;font-weight:600}
+  .paused-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(11,14,19,.7);border:1px solid var(--line);border-radius:12px;padding:10px 18px;font-size:15px;display:none;z-index:6}
+  .gesture-now{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(11,14,19,.7);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:999px;padding:6px 16px;font-size:14px;display:none;z-index:4}
+  .gesture-now b{color:var(--accent)}
+
+  .scn{padding:12px 14px 0}
+  .scn-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+  .scnp{flex:0 0 auto;font-size:11px;color:var(--sub);border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px;cursor:pointer;white-space:nowrap;transition:.15s}
+  .scnp.active{border-color:var(--accent);color:var(--accent);background:rgba(232,176,75,.12)}
+  .scn-desc{font-size:11px;color:var(--sub);line-height:1.5;min-height:16px;margin-top:2px}
+
+  .action-bar{padding:12px 14px 0}
+  .action-label{font-size:12px;color:var(--sub);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+  .action-label .fx{display:flex;gap:6px}
+  .fxbtn{font-size:11px;color:var(--sub);border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:4px 10px;cursor:pointer}
+  .fxbtn.active{border-color:var(--accent);color:var(--accent);background:rgba(232,176,75,.12)}
+  .action-out{font-size:14px;color:var(--txt);min-height:20px}
+  .action-out .key{color:var(--blue);font-weight:600}
+
+  .log{margin:8px 14px 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:11px;color:var(--sub);max-height:96px;overflow-y:auto;line-height:1.7}
+  .log .e{display:flex;justify-content:space-between;gap:8px}
+  .log .e .g{color:var(--accent);font-weight:600}
+  .log .e .t{color:#5E6B7A;font-variant-numeric:tabular-nums}
+
+  .chips{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 14px 12px;margin-top:auto}
+  .chip{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 6px;text-align:center;cursor:pointer;transition:.18s;user-select:none}
+  .chip .emoji{font-size:22px;line-height:1}
+  .chip .name{font-size:12px;margin-top:6px;color:var(--sub)}
+  .chip.active{border-color:var(--accent);background:rgba(232,176,75,.12);box-shadow:0 0 0 1px var(--accent) inset}
+  .chip.active .name{color:var(--accent);font-weight:600}
+
+  footer{padding:10px 16px 18px;color:var(--sub);font-size:11px;line-height:1.6;text-align:center}
+  footer code{color:var(--blue)}
+  footer .dl{color:var(--accent);font-weight:600;margin-top:4px;display:block}
+
+  button.cta{background:var(--accent);color:#0B0E13;border:0;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:700;cursor:pointer}
+  button.cta:disabled{opacity:.6;cursor:default}
+  .err{color:var(--warn);font-size:12px;margin-top:8px;line-height:1.6}
+
+  .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:rgba(232,176,75,.95);color:#0B0E13;font-size:13px;font-weight:600;padding:9px 18px;border-radius:999px;opacity:0;transition:.25s;pointer-events:none;z-index:20}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">德胧 <span class="mark">· AI Native</span>
+      <span class="en">DELONIX GESTURE LAB</span>
+    </div>
+    <div class="tag">MediaPipe · WebGL</div>
+  </header>
+
+  <div class="stage">
+    <canvas id="gl"></canvas>
+    <canvas id="c"></canvas>
+    <div class="scan"></div>
+    <div class="hud">
+      <div class="pill">FPS <b class="v" id="fps">--</b></div>
+      <div class="pill">延迟 <b class="v" id="lat">--</b> ms</div>
+      <div class="pill">手 <b id="hands">0</b></div>
+    </div>
+    <div class="gesture-now" id="gestureNow">识别：<b id="gestureNowName">--</b></div>
+    <div class="paused-hint" id="pausedHint">⏸ 已暂停 · 松开手后再握拳即可继续</div>
+    <div class="center-hint" id="hint">
+      <div class="big">📷 开启摄像头开始体验</div>
+      <p>点击按钮后浏览器会请求「使用摄像头」权限，请点击允许。<br>没有摄像头也可点击下方手势 chip 体验模拟模式。</p>
+      <button class="cta" id="startBtn">开启摄像头</button>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <div class="scn">
+    <div class="scn-row" id="scnRow"></div>
+    <div class="scn-desc" id="scnDesc"></div>
+  </div>
+
+  <div class="action-bar">
+    <div class="action-label">
+      <span>手势 → 动作（随场景变化）</span>
+      <span class="fx">
+        <span class="fxbtn" data-fx="off">关</span>
+        <span class="fxbtn active" data-fx="ripple">水波纹</span>
+        <span class="fxbtn" data-fx="blackhole">黑洞</span>
+      </span>
+    </div>
+    <div class="action-out" id="actionOut">尚未识别到手势 —— 选择场景后点击下方 chip 可手动模拟</div>
+  </div>
+
+  <div class="log" id="log"><div class="e"><span>触发记录（实时）</span><span class="t">—</span></div></div>
+
+  <div class="chips" id="chips"></div>
+
+  <footer>
+    手势判定基于 21 关键点几何规则；画面扭曲由 WebGL 着色器实时渲染，手部位置即波源/奇点。模型与 WASM 已本地化，不依赖海外 CDN。中低端机可切 <code>CPU</code> 推理或 <code>480p</code>。
+    <span class="dl">德胧集团 · AI Native 战略体验资产</span>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗
+     ║  第一段：UI 初始化（不依赖任何外部库，立即执行，保证永远可用）  ║
+     ╚═══════════════════════════════════════════════════════════════╝ -->
+<script>
+(function(){
+  "use strict";
+
+  /* ───────────────────────────────────────────────────────────────
+   * 手势映射配置表（非开发也能改这里）
+   *  - key      : 内部手势标识
+   *  - name     : 展示名
+   *  - emoji    : chip 图标
+   *  - handler  : 对应 GESTURE_HANDLERS 里的处理器（真实动作）
+   *  - action   : 默认展示文案（被场景 SCENARIOS 覆盖）
+   * 新增手势只需在此加一项 + 在 GESTURE_HANDLERS 注册处理器即可。
+   * ─────────────────────────────────────────────────────────────── */
+  var GESTURE_CONFIG = {
+    open:  { name:"张开", emoji:"🖐️", handler:"fullscreen" },
+    peace: { name:"比耶", emoji:"✌️", handler:"screenshot" },
+    fist:  { name:"握拳", emoji:"✊", handler:"pause" },
+    pinch: { name:"捏合", emoji:"🤏", handler:"cycleEffect" },
+  };
+  var ORDER = ["open","peace","fist","pinch"];
+
+  // 特效模式：off / ripple / blackhole
+  var EFFECT_MODES = ["off","ripple","blackhole"];
+
+  /* ───────────────────────────────────────────────────────────────
+   * 场景模式：同一组手势在不同酒店语境下被赋予不同"关联事项"。
+   * 切换场景即切换每只手势的 action 文案 + 触发 toast + 落单记录语义。
+   * real handler 不变（演示用），接入真实后端时把 GESTURE_HANDLERS
+   * 里的桩函数替换为 IoT / PMS / 服务调度等调用即可。
+   * ─────────────────────────────────────────────────────────────── */
+  var SCENARIOS = {
+    demo: {
+      name:"通用演示", tag:"DEMO",
+      desc:"标准手势→动作映射，用于体验与功能验证。",
+      map:{ open:"全屏展开 / 呼出主菜单", peace:"截图 / 拍照捕捉", fist:"暂停 / 锁定界面", pinch:"切换特效（关→水波纹→黑洞）" },
+      toast:{ open:"已全屏", peace:"已截图", fist:"已暂停 / 继续", pinch:"特效切换" }
+    },
+    room: {
+      name:"智能客房", tag:"ROOM",
+      desc:"隔空控制客房设备，免触屏更卫生——可对接客控 IoT。",
+      map:{ open:"开灯 / 呼出客房控制面板", peace:"截图分享至客房相册", fist:"勿扰模式 开 / 关", pinch:"切换场景（阅读 / 睡眠 / 影院）" },
+      toast:{ open:"客房面板已呼出", peace:"已分享至客房相册", fist:"勿扰模式切换", pinch:"客房场景切换" }
+    },
+    banquet: {
+      name:"宴会放映", tag:"MICE",
+      desc:"演讲者隔空翻页与控场，解放双手——适合 MICE 销售向客户演示。",
+      map:{ open:"全屏放映", peace:"下一张 / 翻页", fist:"暂停演讲 / 留白", pinch:"切换氛围特效" },
+      toast:{ open:"已进入放映", peace:"已翻页", fist:"已暂停演讲", pinch:"氛围切换" }
+    },
+    lobby: {
+      name:"大堂欢迎", tag:"LOBBY",
+      desc:"路人不需触摸即可与数字标牌互动，提升科技感与停留。",
+      map:{ open:"欢迎互动 / 呼出导览", peace:"呼叫礼宾 / 取号", fist:"结束互动", pinch:"切换欢迎特效" },
+      toast:{ open:"欢迎光临德胧", peace:"礼宾已呼叫", fist:"互动结束", pinch:"欢迎特效切换" }
+    },
+    aid: {
+      name:"无障碍呼叫", tag:"AID",
+      desc:"行动不便 / 老年客人用手势即可呼叫服务，落单到 PMS。",
+      map:{ open:"呼叫客房服务", peace:"呼叫前台", fist:"紧急呼叫 / SOS", pinch:"切换呼叫类型" },
+      toast:{ open:"客房服务已呼叫", peace:"前台已呼叫", fist:"紧急呼叫已发出", pinch:"呼叫类型切换" }
+    }
+  };
+  var SCN_ORDER = ["demo","room","banquet","lobby","aid"];
+
+  var H = window.__HTL = {
+    GESTURE_CONFIG: GESTURE_CONFIG,
+    ORDER: ORDER,
+    SCENARIOS: SCENARIOS,
+    scenario: SCENARIOS.demo,
+    activeGesture: null,
+    manualMode: false,
+    effectMode: "ripple",
+    paused: false,
+    setActive: null,
+    setEffect: null,
+    cycleEffect: null,
+    logTrigger: null,
+    scenarioToast: null,
+    toast: function(msg){ showToast(msg); }
+  };
+
+  // ---- DOM ----
+  var chipsWrap = document.getElementById('chips');
+  var actionOut = document.getElementById('actionOut');
+  var gestureNow = document.getElementById('gestureNow');
+  var gestureNowName = document.getElementById('gestureNowName');
+  var pausedHint = document.getElementById('pausedHint');
+  var toastEl = document.getElementById('toast');
+  var chipEls = {};
+
+  // ---- chips 渲染 ----
+  ORDER.forEach(function(k){
+    var g = GESTURE_CONFIG[k];
+    var el = document.createElement('div');
+    el.className = 'chip';
+    el.innerHTML = '<div class="emoji">'+g.emoji+'</div><div class="name">'+g.name+'</div>';
+    el.addEventListener('click', function(){
+      H.manualMode = true;
+      H.paused = false; pausedHint.style.display='none';
+      H.setActive(k);
+      var hk = GESTURE_CONFIG[k].handler;
+      if (HANDLERS_LOCAL[hk]) HANDLERS_LOCAL[hk]();
+      if (H.scenarioToast) H.scenarioToast(k);
+      if (H.logTrigger) H.logTrigger(k);
+    });
+    chipsWrap.appendChild(el);
+    chipEls[k] = el;
+  });
+
+  // 高亮 + 文案（动作文案跟随当前场景）
+  H.setActive = function(key){
+    H.activeGesture = key;
+    ORDER.forEach(function(k){ chipEls[k].classList.toggle('active', k===key); });
+    var g = GESTURE_CONFIG[key];
+    var act = (H.scenario && H.scenario.map && H.scenario.map[key]) ? H.scenario.map[key] : key;
+    actionOut.innerHTML = '检测到 <span class="key">'+g.name+'</span> → '+act;
+    gestureNow.style.display = 'block';
+    gestureNowName.textContent = g.name;
+  };
+  H.scenarioToast = function(key){
+    var t = (H.scenario && H.scenario.toast && H.scenario.toast[key]) ? H.scenario.toast[key] : key;
+    showToast(t);
+  };
+
+  // ---- 触发记录（实时落单，呼应"关联事项"可追踪）----
+  var logEl = document.getElementById('log');
+  H.logTrigger = function(key){
+    var g = GESTURE_CONFIG[key];
+    var act = (H.scenario && H.scenario.map && H.scenario.map[key]) ? H.scenario.map[key] : key;
+    var time = new Date().toLocaleTimeString('zh-CN',{hour12:false});
+    var row = document.createElement('div');
+    row.className = 'e';
+    row.innerHTML = '<span><span class="g">'+g.emoji+' '+g.name+'</span> · '+act+'</span><span class="t">'+H.scenario.name+' '+time+'</span>';
+    logEl.insertBefore(row, logEl.firstChild);
+    while (logEl.children.length > 7) logEl.removeChild(logEl.lastChild);
+  };
+
+  // ---- 场景选择器 ----
+  var scnRow = document.getElementById('scnRow');
+  var scnDesc = document.getElementById('scnDesc');
+  function paintScn(){
+    SCN_ORDER.forEach(function(k){
+      var el = scnRow.querySelector('[data-scn="'+k+'"]');
+      if (el) el.classList.toggle('active', H.scenario === SCENARIOS[k]);
+    });
+    scnDesc.textContent = H.scenario.desc;
+  }
+  SCN_ORDER.forEach(function(k){
+    var s = SCENARIOS[k];
+    var el = document.createElement('div');
+    el.className = 'scnp';
+    el.setAttribute('data-scn', k);
+    el.textContent = s.name;
+    el.addEventListener('click', function(){
+      H.scenario = SCENARIOS[k];
+      paintScn();
+      if (H.activeGesture) H.setActive(H.activeGesture);  // 刷新当前动作文案
+    });
+    scnRow.appendChild(el);
+  });
+  paintScn();
+
+  // ---- 特效档位按钮 ----
+  var fxBtns = document.querySelectorAll('.fxbtn');
+  function paintFx(){
+    fxBtns.forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-fx')===H.effectMode); });
+  }
+  fxBtns.forEach(function(b){
+    b.addEventListener('click', function(){ H.setEffect(b.getAttribute('data-fx')); });
+  });
+  H.setEffect = function(mode){
+    if (EFFECT_MODES.indexOf(mode)<0) return;
+    H.effectMode = mode;
+    paintFx();
+    H.toast('特效：' + ({off:'关闭',ripple:'水波纹',blackhole:'空间黑洞'}[mode]));
+  };
+  H.cycleEffect = function(){
+    var i = EFFECT_MODES.indexOf(H.effectMode);
+    H.setEffect(EFFECT_MODES[(i+1) % EFFECT_MODES.length]);
+  };
+  paintFx();
+
+  // ---- 模拟模式可用的本地动作（无模型也能跑的轻动作）----
+  var HANDLERS_LOCAL = {
+    fullscreen: function(){ toggleFullscreen(); },
+    pause: function(){ togglePauseLocal(); },
+    cycleEffect: function(){ H.cycleEffect(); },
+    screenshot: function(){ H.toast('开启摄像头后可截图'); }
+  };
+  function toggleFullscreen(){
+    var el = document.documentElement;
+    if (!document.fullscreenElement){ (el.requestFullscreen||el.webkitRequestFullscreen||function(){}).call(el); }
+    else { (document.exitFullscreen||document.webkitExitFullscreen||function(){}).call(document); }
+  }
+  function togglePauseLocal(){
+    H.paused = !H.paused;
+    pausedHint.style.display = H.paused ? 'block' : 'none';
+    H.toast(H.paused ? '已暂停' : '已继续');
+  }
+
+  // ---- toast ----
+  var toastTimer = null;
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 1400);
+  }
+
+  if (!window.isSecureContext) {
+    document.getElementById('err').textContent = "⚠️ 当前不是安全上下文（需 https 或 localhost），摄像头不可用，可先用手势 chip 模拟模式。";
+  }
+})();
+</script>
+
+<!-- ╔═══════════════════════════════════════════════════════════════╗
+     ║  第二段：主逻辑（动态加载模型 + WebGL 特效 + 事件总线去抖）     ║
+     ╚═══════════════════════════════════════════════════════════════╝ -->
+<script type="module">
+const H = window.__HTL;
+const c = document.getElementById('c');            // 2D overlay（骨架）
+const ctx = c.getContext('2d');
+const glCanvas = document.getElementById('gl');    // WebGL（扭曲视频）
+const fpsEl = document.getElementById('fps');
+const latEl = document.getElementById('lat');
+const handsEl = document.getElementById('hands');
+const hint = document.getElementById('hint');
+const startBtn = document.getElementById('startBtn');
+const errEl = document.getElementById('err');
+
+// ───────────────── 手势几何判定 ─────────────────
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function fingerExt(h, tip, mcp){ return dist(h[tip], h[0]) > dist(h[mcp], h[0]) * 1.05; }
+function detectGesture(h){
+  const index  = fingerExt(h,8,5);
+  const middle = fingerExt(h,12,9);
+  const ring   = fingerExt(h,16,13);
+  const pinky  = fingerExt(h,20,17);
+  const pinchD = dist(h[4], h[8]);
+  if (pinchD < 0.05) return 'pinch';
+  if (index && middle && ring && pinky) return 'open';
+  if (index && middle && !ring && !pinky) return 'peace';
+  if (!index && !middle && !ring && !pinky) return 'fist';
+  return null;
+}
+function handCenter(h){ let x=0,y=0; for(const p of h){x+=p.x;y+=p.y;} return {x:x/h.length, y:y/h.length}; }
+
+// ───────────────── 真实动作处理器注册表 ─────────────────
+// 当前为演示桩函数；接入真实业务时把这里替换为 IoT / PMS / 服务调度等调用。
+// 触发文案与落单语义由 GESTURE_CONFIG + 当前 SCENARIO 决定（见第一段）。
+const GESTURE_HANDLERS = {
+  fullscreen(){ (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen||function(){}).call(document.documentElement); },
+  pause(){ togglePause(); },
+  cycleEffect(){ H.cycleEffect(); },
+  screenshot(){ takeScreenshot(); }
+};
+function togglePause(){
+  H.paused = !H.paused;
+  document.getElementById('pausedHint').style.display = H.paused ? 'block' : 'none';
+  H.scenarioToast('fist');
+  if (H.logTrigger) H.logTrigger('fist');
+}
+function takeScreenshot(){
+  try{
+    const tmp = document.createElement('canvas');
+    tmp.width = glCanvas.width || 480; tmp.height = glCanvas.height || 640;
+    const t = tmp.getContext('2d');
+    t.drawImage(glCanvas, 0, 0);
+    t.drawImage(c, 0, 0);
+    const a = document.createElement('a');
+    a.href = tmp.toDataURL('image/png');
+    a.download = 'delonix-gesture-' + Date.now() + '.png';
+    a.click();
+    H.toast('已保存截图');
+  }catch(e){ H.toast('截图失败：' + (e.message||e)); }
+}
+
+// ───────────────── 事件总线（稳定帧 + 冷却）─────────────────
+const STABLE_FRAMES = 4;     // 连续 4 帧同手势才触发
+const COOLDOWN_MS = 700;      // 触发后冷却，避免连发
+const bus = { pending:null, n:0, cur:null, coolUntil:0 };
+function busTryFire(name){
+  if (!name) return;
+  if (name === bus.pending) bus.n++; else { bus.pending = name; bus.n = 1; }
+  const now = performance.now();
+  if (now < bus.coolUntil) return;               // 冷却中
+  if (bus.n < STABLE_FRAMES) return;             // 不够稳定
+  bus.cur = name; bus.coolUntil = now + COOLDOWN_MS;
+  H.setActive(name);
+  H.scenarioToast(name);
+  if (H.logTrigger) H.logTrigger(name);
+  const hk = H.GESTURE_CONFIG[name].handler;
+  if (GESTURE_HANDLERS[hk]) GESTURE_HANDLERS[hk]();
+}
+
+// ───────────────── WebGL 后处理管线 ─────────────────
+const VERT = `
+attribute vec2 a_pos; varying vec2 v_uv;
+void main(){ v_uv = a_pos*0.5+0.5; gl_Position = vec4(a_pos,0.0,1.0); }`;
+const FRAG = `
+precision mediump float;
+varying vec2 v_uv;
+uniform sampler2D u_tex;
+uniform float u_time;
+uniform int u_mode;            // 0 off, 1 ripple, 2 blackhole
+uniform vec2 u_centers[2];
+uniform float u_speeds[2];
+uniform int u_handCount;
+void main(){
+  vec2 uv = v_uv;
+  uv.x = 1.0 - uv.x;           // 镜像（自拍自然感）
+  vec2 disp = vec2(0.0);
+  for(int i=0;i<2;i++){
+    if(i>=u_handCount) break;
+    vec2 d = uv - u_centers[i];
+    float r = length(d);
+    float sp = u_speeds[i];
+    if(u_mode==1){             // 水波纹：以手部为波源向外扩散
+      float wave = sin(r*38.0 - u_time*6.0) * exp(-r*5.0) * (0.012 + sp*0.07);
+      disp += normalize(d+1e-5) * wave;
+    } else if(u_mode==2){      // 空间黑洞：向心吸入 + 旋转扭曲
+      float pull = min(0.18/(r+0.08) * (0.4 + sp*1.2), 0.35);
+      float ang = (0.6 + sp*2.0) * exp(-r*3.0);
+      float ca = cos(ang), sa = sin(ang);
+      vec2 rd = vec2(d.x*ca - d.y*sa, d.x*sa + d.y*ca);
+      disp += (rd - d) * pull;
+    }
+  }
+  vec2 suv = uv + disp;
+  float r = texture2D(u_tex, suv + disp*0.3).r;
+  float g = texture2D(u_tex, suv).g;
+  float b = texture2D(u_tex, suv - disp*0.3).b;
+  vec3 col = vec3(r,g,b);
+  float vig = smoothstep(1.1,0.3,length(v_uv-0.5));   // 暗角
+  col *= mix(0.82,1.0,vig);
+  gl_FragColor = vec4(col,1.0);
+}`;
+
+let gl = null, prog = null, tex = null, uni = {}, webglOK = false;
+function initGL(){
+  try{
+    gl = glCanvas.getContext('webgl', { preserveDrawingBuffer:true, antialias:false });
+    if (!gl) return false;
+    const vs = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vs, VERT); gl.compileShader(vs);
+    const fs = gl.createShader(gl.FRAGMENT_SHADER); gl.shaderSource(fs, FRAG); gl.compileShader(fs);
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) { console.warn('frag err', gl.getShaderInfoLog(fs)); return false; }
+    prog = gl.createProgram(); gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) return false;
+    gl.useProgram(prog);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, 'a_pos'); gl.enableVertexAttribArray(loc);
+    gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+    tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    uni = {
+      tex: gl.getUniformLocation(prog,'u_tex'),
+      time: gl.getUniformLocation(prog,'u_time'),
+      mode: gl.getUniformLocation(prog,'u_mode'),
+      centers: gl.getUniformLocation(prog,'u_centers'),
+      speeds: gl.getUniformLocation(prog,'u_speeds'),
+      handCount: gl.getUniformLocation(prog,'u_handCount'),
+    };
+    webglOK = true;
+    return true;
+  }catch(e){ console.warn('WebGL init failed', e); return false; }
+}
+
+// ───────────────── 状态 ─────────────────
+let landmarker = null, video = null, running = false, loading = false;
+const CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+              [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+const prevCenter = [null, null];   // 上一帧手部中心（算运动速度）
+const smoothSpeed = [0, 0];
+
+async function loadModel(){
+  if (landmarker) return;
+  const vision = await import("./wasm/vision_bundle.mjs");               // 本地 JS 库
+  const fileset = await vision.FilesetResolver.forVisionTasks("./wasm"); // 本地 WASM
+  landmarker = await vision.HandLandmarker.createFromOptions(fileset, {
+    baseOptions: { modelAssetPath: "./models/hand_landmarker.task", delegate: "GPU" }, // 本地模型
+    runningMode: "VIDEO",
+    numHands: 2
+  });
+}
+
+async function start(){
+  if (loading || running) return;
+  errEl.textContent = "";
+  startBtn.disabled = true;
+  startBtn.textContent = "加载模型中…（首次约 17MB，请稍候）";
+  loading = true;
+  try {
+    await loadModel();
+    startBtn.textContent = "请求摄像头权限…";
+    video = document.createElement('video');
+    video.playsInline = true; video.muted = true;
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode:"user", width:{ideal:640}, height:{ideal:480} }, audio:false
+    });
+    video.srcObject = stream;
+    await video.play();
+    if (!webglOK) initGL();
+    hint.style.display = 'none';
+    running = true;
+    H.manualMode = false;
+    requestAnimationFrame(loop);
+  } catch(e){
+    const msg = (e && e.message) ? e.message : String(e);
+    errEl.textContent = "⚠️ 启动失败：" + msg + "。可先点击下方手势 chip 体验模拟模式，或刷新重试。";
+    startBtn.disabled = false;
+    startBtn.textContent = "重试开启摄像头";
+  } finally {
+    loading = false;
+  }
+}
+startBtn.addEventListener('click', start);
+
+// ───────────────── 渲染循环 ─────────────────
+let frames = 0, fpsT = performance.now(), t0s = performance.now();
+let pauseArmed = true;   // 握拳边沿触发：必须松开手后再次握拳才切换暂停/恢复，避免抖动
+function loop(){
+  if (!running) return;
+
+  const now = performance.now();
+
+  // 暂停态：画面冻结，但仍持续检测手势——松开手后再握拳即可恢复
+  if (H.paused){
+    let det = null;
+    if (video && video.readyState >= 2){
+      try { const r = landmarker.detectForVideo(video, now); if (r && r.landmarks && r.landmarks.length) det = detectGesture(r.landmarks[0]); } catch(_) {}
+    }
+    if (det !== 'fist') pauseArmed = true;
+    else if (pauseArmed){ togglePause(); pauseArmed = false; }
+    requestAnimationFrame(loop);
+    return;
+  }
+
+  const t0 = performance.now();
+  let res = null;
+  try { if (video.readyState >= 2) res = landmarker.detectForVideo(video, now); } catch(_) {}
+  const latency = performance.now() - t0;
+
+  const vw = video.videoWidth || 480, vh = video.videoHeight || 640;
+  if (glCanvas.width !== vw){ glCanvas.width = vw; glCanvas.height = vh; }
+  if (c.width !== vw){ c.width = vw; c.height = vh; }
+
+  const modeMap = { off:0, ripple:1, blackhole:2 };
+  const mode = modeMap[H.effectMode] || 0;
+
+  // ---- WebGL：上传视频纹理 + 扭曲 ----
+  if (webglOK && video.readyState >= 2){
+    gl.viewport(0,0,vw,vh);
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    try { gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, video); } catch(_) {}
+    gl.useProgram(prog);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.uniform1i(uni.tex, 0);
+    gl.uniform1f(uni.time, (now - t0s) / 1000);
+    gl.uniform1i(uni.mode, mode);
+    gl.uniform1i(uni.handCount, 0);
+  }
+
+  // ---- 检测 + 骨架 + 波源计算 ----
+  let centers = [ [0.5,0.5],[0.5,0.5] ], speeds = [0,0], hcount = 0, detected = null;
+  ctx.clearRect(0,0,c.width,c.height);
+  if (res && res.landmarks && res.landmarks.length){
+    handsEl.textContent = res.landmarks.length;
+    for (let hi=0; hi<res.landmarks.length && hi<2; hi++){
+      const hand = res.landmarks[hi];
+      // 镜像坐标用于显示 & 作为 shader 波源（屏幕空间）
+      const cen = handCenter(hand);
+      const sc = { x: 1 - cen.x, y: cen.y };
+      // 运动速度（平滑）
+      if (prevCenter[hi]){
+        const sp = Math.hypot(sc.x-prevCenter[hi].x, sc.y-prevCenter[hi].y);
+        smoothSpeed[hi] = smoothSpeed[hi]*0.7 + sp*0.3;
+      }
+      prevCenter[hi] = sc;
+      centers[hi] = [sc.x, sc.y]; speeds[hi] = smoothSpeed[hi]; hcount++;
+
+      // 骨架（镜像绘制）
+      ctx.save();
+      ctx.setTransform(-1,0,0,1,c.width,0);
+      ctx.lineWidth = 4; ctx.strokeStyle = "rgba(232,176,75,.9)";
+      for (const [a,b] of CONN){
+        ctx.beginPath();
+        ctx.moveTo(hand[a].x*c.width, hand[a].y*c.height);
+        ctx.lineTo(hand[b].x*c.width, hand[b].y*c.height);
+        ctx.stroke();
+      }
+      for (const p of hand){
+        ctx.beginPath();
+        ctx.arc(p.x*c.width, p.y*c.height, 5, 0, 7);
+        ctx.fillStyle = "#58B2DC"; ctx.fill();
+      }
+      // 波源/奇点发光提示
+      ctx.beginPath();
+      ctx.arc(cen.x*c.width, cen.y*c.height, 26, 0, 7);
+      ctx.strokeStyle = mode===2 ? "rgba(154,123,255,.55)" : "rgba(88,178,220,.5)";
+      ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore();
+
+      if (!detected) detected = detectGesture(hand);
+    }
+    // 把波源喂给 shader
+    if (webglOK){
+      gl.uniform2fv(uni.centers, new Float32Array([].concat(...centers)));
+      gl.uniform1fv(uni.speeds, new Float32Array(speeds));
+      gl.uniform1i(uni.handCount, hcount);
+    }
+  } else {
+    handsEl.textContent = '0';
+    prevCenter[0] = prevCenter[1] = null;
+  }
+
+  if (webglOK){ gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+
+  // ---- 高亮 + 动作触发 ----
+  if (detected && !H.manualMode){
+    if (detected === 'fist'){
+      if (pauseArmed){ togglePause(); pauseArmed = false; }   // 握拳：边沿触发暂停/恢复
+    } else {
+      pauseArmed = true;
+      busTryFire(detected);
+    }
+  }
+
+  // ---- HUD ----
+  frames++;
+  if (now - fpsT >= 500){
+    fpsEl.textContent = Math.round(frames * 1000 / (now - fpsT));
+    frames = 0; fpsT = now;
+  }
+  if (res) latEl.textContent = latency.toFixed(1);
+
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
